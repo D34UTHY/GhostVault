@@ -1,0 +1,53 @@
+version: '3.8'
+
+services:
+  # O Banco de Dados Real (Cofre das Evidências)
+  postgres:
+    image: postgres:15-alpine
+    container_name: ghostvault_db
+    environment:
+      POSTGRES_USER: ${DB_USER}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME}
+    volumes:
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - ghost_net
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  # A Armadilha (Python API)
+  honeypot:
+    build: ./services/honeypot
+    container_name: ghostvault_honeypot
+    ports:
+      - "8000:8000" # Expõe a porta 8000 pra gente atacar
+    environment:
+      DB_HOST: postgres
+      DB_NAME: ${DB_NAME}
+      DB_USER: ${DB_USER}
+      DB_PASSWORD: ${DB_PASSWORD}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - ghost_net
+
+  # Dashboard (Vamos ativar no próximo capítulo)
+  # dashboard:
+  #   build: ./services/dashboard
+  #   ports:
+  #     - "3000:3000"
+  #   networks:
+  #     - ghost_net
+
+networks:
+  ghost_net:
+    driver: bridge
+
+volumes:
+  postgres_data:
